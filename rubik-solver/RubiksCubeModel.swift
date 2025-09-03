@@ -52,33 +52,33 @@ enum CubeColor: CaseIterable {
         }
     }
 
-    /// Simple nearest-color classifier based on RGB distance.
+    /// Color classification using HSV ranges rather than raw RGB distance.
+    /// HSV allows more robust separation of Rubik's cube colors under
+    /// different lighting conditions.
     static func from(_ color: UIColor) -> CubeColor {
-        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
-        color.getRed(&r, green: &g, blue: &b, alpha: &a)
+        var h: CGFloat = 0, s: CGFloat = 0, v: CGFloat = 0, a: CGFloat = 0
+        color.getHue(&h, saturation: &s, brightness: &v, alpha: &a)
 
-        let reference: [(CubeColor, (CGFloat, CGFloat, CGFloat))] = [
-            (.white,  (1, 1, 1)),
-            (.yellow, (1, 1, 0)),
-            (.red,    (1, 0, 0)),
-            (.orange, (1, 0.5, 0)),
-            (.blue,   (0, 0, 1)),
-            (.green,  (0, 1, 0))
-        ]
+        // Treat low-brightness samples as unknown/gray.
+        guard v > 0.2 else { return .gray }
 
-        var best: CubeColor = .gray
-        var bestDist = CGFloat.greatestFiniteMagnitude
-        for (cubeColor, ref) in reference {
-            let dr = r - ref.0
-            let dg = g - ref.1
-            let db = b - ref.2
-            let dist = dr*dr + dg*dg + db*db
-            if dist < bestDist {
-                bestDist = dist
-                best = cubeColor
-            }
+        // Whites have very low saturation but remain bright.
+        if s < 0.2 && v > 0.8 { return .white }
+
+        switch h {
+        case 0.0..<0.05, 0.95...1.0:
+            return .red
+        case 0.05..<0.13:
+            return .orange
+        case 0.13..<0.20:
+            return .yellow
+        case 0.20..<0.45:
+            return .green
+        case 0.45..<0.75:
+            return .blue
+        default:
+            return .gray
         }
-        return best
     }
 }
 

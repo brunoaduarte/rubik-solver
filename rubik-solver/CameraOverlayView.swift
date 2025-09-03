@@ -40,19 +40,43 @@ struct CameraOverlayView: UIViewRepresentable {
             let startX = width / 2 - stepX
             let startY = height / 2 - stepY
 
+            // Average a square patch of pixels for each sticker instead of
+            // sampling a single point. This greatly improves color accuracy.
+            let sampleSize = max(2, min(stepX, stepY) / 6)
+
             var detected: [CubeColor] = []
             for row in 0..<3 {
                 for col in 0..<3 {
-                    let x = startX + col * stepX
-                    let y = startY + row * stepY
-                    let offset = y * bytesPerRow + x * 4
-                    let b = buffer[offset]
-                    let g = buffer[offset + 1]
-                    let r = buffer[offset + 2]
-                    let ui = UIColor(red: CGFloat(r) / 255.0,
-                                      green: CGFloat(g) / 255.0,
-                                      blue: CGFloat(b) / 255.0,
-                                      alpha: 1.0)
+                    let centerX = startX + col * stepX
+                    let centerY = startY + row * stepY
+
+                    var rTotal = 0
+                    var gTotal = 0
+                    var bTotal = 0
+                    var count = 0
+
+                    let originX = max(0, centerX - sampleSize / 2)
+                    let originY = max(0, centerY - sampleSize / 2)
+
+                    for yy in 0..<sampleSize {
+                        for xx in 0..<sampleSize {
+                            let x = originX + xx
+                            let y = originY + yy
+                            if x < width && y < height {
+                                let idx = y * bytesPerRow + x * 4
+                                bTotal += Int(buffer[idx])
+                                gTotal += Int(buffer[idx + 1])
+                                rTotal += Int(buffer[idx + 2])
+                                count += 1
+                            }
+                        }
+                    }
+
+                    guard count > 0 else { continue }
+                    let r = CGFloat(rTotal) / CGFloat(count) / 255.0
+                    let g = CGFloat(gTotal) / CGFloat(count) / 255.0
+                    let b = CGFloat(bTotal) / CGFloat(count) / 255.0
+                    let ui = UIColor(red: r, green: g, blue: b, alpha: 1.0)
                     detected.append(CubeColor.from(ui))
                 }
             }
