@@ -17,7 +17,7 @@ struct RubiksCubeView: UIViewRepresentable {
         cubeNode.geometry = SCNBox(width: 1, height: 1, length: 1, chamferRadius: 0.0)
         cubeNode.geometry?.materials = cubeMaterials()
         // Start angled so front, right and top faces are visible
-        cubeNode.eulerAngles = SCNVector3(-.pi/6, .pi/4, 0)
+        cubeNode.eulerAngles = SCNVector3(-Float.pi / 6, Float.pi / 4, 0)
         view.scene?.rootNode.addChildNode(cubeNode)
 
         let cameraNode = SCNNode()
