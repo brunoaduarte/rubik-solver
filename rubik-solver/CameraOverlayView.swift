@@ -108,8 +108,8 @@ struct CameraOverlayView: UIViewRepresentable {
             let center = stable[4]
             if let faceIndex = parent.cube.faceIndex(for: center) {
                 if parent.cube.faces[faceIndex] != stable {
-                    DispatchQueue.main.async {
-                        parent.cube.update(face: faceIndex, with: stable)
+                    DispatchQueue.main.async { [weak self] in
+                        self?.parent.cube.update(face: faceIndex, with: stable)
                     }
                 }
             }
@@ -140,8 +140,14 @@ struct CameraOverlayView: UIViewRepresentable {
         session.addOutput(output)
 
         // Configure orientation of the camera preview.
-        if let connection = view.videoPreviewLayer.connection, connection.isVideoOrientationSupported {
-            connection.videoOrientation = .portrait
+        if let connection = view.videoPreviewLayer.connection {
+            if #available(iOS 17, *) {
+                if connection.isVideoRotationAngleSupported(90) {
+                    connection.videoRotationAngle = 90
+                }
+            } else if connection.isVideoOrientationSupported {
+                connection.videoOrientation = .portrait
+            }
         }
 
         let startSession = {
