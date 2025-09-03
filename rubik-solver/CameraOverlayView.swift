@@ -44,16 +44,17 @@ struct CameraOverlayView: UIViewRepresentable {
             let startX = width / 2 - stepX
             let startY = height / 2 - stepY
 
-            // Average a square patch of pixels for each sticker instead of
-            // sampling a single point. This greatly improves color accuracy.
-            let sampleSize = max(2, min(stepX, stepY) / 6)
+            // Margin used when sampling inside each sticker to avoid grid lines.
+            let marginX = stepX / 6
+            let marginY = stepY / 6
 
             var detected: [CubeColor] = []
             var rects: [CGRect] = []
             for row in 0..<3 {
                 for col in 0..<3 {
-                    let centerX = startX + col * stepX
-                    let centerY = startY + row * stepY
+                    // Full cell covering the expected sticker region.
+                    let cellX = startX + col * stepX - stepX / 2
+                    let cellY = startY + row * stepY - stepY / 2
 
                     var hX: CGFloat = 0
                     var hY: CGFloat = 0
@@ -61,11 +62,14 @@ struct CameraOverlayView: UIViewRepresentable {
                     var vTotal: CGFloat = 0
                     var count: CGFloat = 0
 
-                    let originX = max(0, centerX - sampleSize / 2)
-                    let originY = max(0, centerY - sampleSize / 2)
+                    // Sample a smaller patch within the cell to avoid edges.
+                    let originX = max(0, Int(cellX + marginX))
+                    let originY = max(0, Int(cellY + marginY))
+                    let sampleW = max(1, Int(stepX - 2 * marginX))
+                    let sampleH = max(1, Int(stepY - 2 * marginY))
 
-                    for yy in 0..<sampleSize {
-                        for xx in 0..<sampleSize {
+                    for yy in 0..<sampleH {
+                        for xx in 0..<sampleW {
                             let x = originX + xx
                             let y = originY + yy
                             if x < width && y < height {
@@ -92,11 +96,11 @@ struct CameraOverlayView: UIViewRepresentable {
                     let meanVal = vTotal / count
                     detected.append(CubeColor.from(h: meanHue, s: meanSat, v: meanVal))
 
-                    // Normalized rect for overlay debug square
-                    let rect = CGRect(x: CGFloat(originX) / CGFloat(width),
-                                      y: CGFloat(originY) / CGFloat(height),
-                                      width: CGFloat(sampleSize) / CGFloat(width),
-                                      height: CGFloat(sampleSize) / CGFloat(height))
+                    // Normalized rect for overlay debug square matching the sticker size.
+                    let rect = CGRect(x: CGFloat(cellX) / CGFloat(width),
+                                      y: CGFloat(cellY) / CGFloat(height),
+                                      width: CGFloat(stepX) / CGFloat(width),
+                                      height: CGFloat(stepY) / CGFloat(height))
                     rects.append(rect)
                 }
             }
@@ -161,9 +165,16 @@ struct CameraOverlayView: UIViewRepresentable {
                     let text = CATextLayer()
                     text.string = color.label
                     text.alignmentMode = .center
-                    text.foregroundColor = UIColor.white.cgColor
-                    text.backgroundColor = UIColor.black.withAlphaComponent(0.5).cgColor
-                    text.fontSize = 10
+                    text.truncationMode = .none
+                    text.masksToBounds = false
+                    let labelColor: UIColor = {
+                        switch color {
+                        case .blue, .green, .red: return .white
+                        default: return .black
+                        }
+                    }()
+                    text.foregroundColor = labelColor.cgColor
+                    text.fontSize = max(12, min(layerRect.width, layerRect.height) * 0.4)
                     text.contentsScale = UIScreen.main.scale
                     text.frame = layerRect
                     overlay.layer.addSublayer(text)

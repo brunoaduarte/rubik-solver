@@ -104,14 +104,19 @@ enum CubeColor: CaseIterable {
 
     /// Classify a sampled color by comparing its HSV components against the
     /// reference palette. The nearest color wins; samples that are too dark are
-    /// treated as unknown/gray.
+    /// treated as unknown/gray. White is detected using a saturation threshold
+    /// before comparing against the remaining palette.
     static func from(h: CGFloat, s: CGFloat, v: CGFloat) -> CubeColor {
-        guard v > 0.1 else { return .gray }
+        // Very dark samples are treated as unknown.
+        guard v > 0.2 else { return .gray }
+
+        // Low saturation with high brightness is classified as white.
+        if s < 0.2 && v > 0.7 { return .white }
 
         var best: CubeColor = .gray
         var bestDistance: CGFloat = .greatestFiniteMagnitude
 
-        for (cubeColor, ref) in referenceHSV {
+        for (cubeColor, ref) in referenceHSV where cubeColor != .white {
             let dH = min(abs(h - ref.h), 1 - abs(h - ref.h)) * hWeight
             let dS = abs(s - ref.s) * sWeight
             let dV = abs(v - ref.v) * vWeight
@@ -124,7 +129,7 @@ enum CubeColor: CaseIterable {
 
         // If the closest reference is still far away, mark as gray to avoid
         // propagating wildly incorrect colors.
-        return bestDistance > 0.6 ? .gray : best
+        return bestDistance > 0.4 ? .gray : best
     }
 
     /// Convenience wrapper for callers providing a `UIColor` sample.
