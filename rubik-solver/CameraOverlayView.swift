@@ -6,22 +6,29 @@ import AVFoundation
 struct CameraOverlayView: UIViewRepresentable {
     @ObservedObject var cube: RubiksCubeModel
 
+    /// Simple `UIView` subclass whose backing layer is an `AVCaptureVideoPreviewLayer`.
+    /// This keeps the preview sized correctly as the view resizes.
+    class PreviewView: UIView {
+        override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
+        var videoPreviewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    }
+
     class Coordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         var parent: CameraOverlayView
         var session: AVCaptureSession?
-        var previewLayer: AVCaptureVideoPreviewLayer?
         init(parent: CameraOverlayView) { self.parent = parent }
         // Placeholder for future color detection logic
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+    func makeUIView(context: Context) -> PreviewView {
+        let view = PreviewView()
 
         let session = AVCaptureSession()
         context.coordinator.session = session
-        session.sessionPreset = .photo
+        view.videoPreviewLayer.session = session
+        view.videoPreviewLayer.videoGravity = .resizeAspectFill
 
         guard let device = AVCaptureDevice.default(for: .video),
               let input = try? AVCaptureDeviceInput(device: device) else {
@@ -29,17 +36,26 @@ struct CameraOverlayView: UIViewRepresentable {
         }
         session.addInput(input)
 
-        let preview = AVCaptureVideoPreviewLayer(session: session)
-        preview.videoGravity = .resizeAspectFill
-        preview.frame = view.bounds
-        context.coordinator.previewLayer = preview
-        view.layer.addSublayer(preview)
+        // Configure orientation of the camera preview.
+        if let connection = view.videoPreviewLayer.connection, connection.isVideoOrientationSupported {
+            connection.videoOrientation = .portrait
+        }
 
-        AVCaptureDevice.requestAccess(for: .video) { granted in
-            guard granted else { return }
+        let startSession = {
             DispatchQueue.global(qos: .userInitiated).async {
                 session.startRunning()
             }
+        }
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            startSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                if granted { startSession() }
+            }
+        default:
+            break
         }
 
         let overlay = CubeWireframeView()
@@ -56,8 +72,8 @@ struct CameraOverlayView: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: UIView, context: Context) {
-        context.coordinator.previewLayer?.frame = view.bounds
+    func updateUIView(_ view: PreviewView, context: Context) {
+        // Nothing required – the preview layer automatically matches the view's bounds.
     }
 }
 
