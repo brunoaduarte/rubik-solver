@@ -34,9 +34,9 @@ struct RubiksCubeView: UIViewRepresentable {
     }
 
     private func cubeMaterials() -> [SCNMaterial] {
-        cube.faces.map { colors in
+        (0..<cube.faces.count).map { idx in
             let material = SCNMaterial()
-            material.diffuse.contents = faceImage(from: colors)
+            material.diffuse.contents = faceImage(from: cube.colors(for: idx))
             return material
         }
     }
