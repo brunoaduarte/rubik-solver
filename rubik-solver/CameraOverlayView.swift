@@ -19,6 +19,8 @@ struct CameraOverlayView: UIViewRepresentable {
         var session: AVCaptureSession?
         private let historyLength = 5
         private var recentDetections: [[CubeColor]] = []
+        weak var overlayView: UIView?
+        weak var previewLayer: AVCaptureVideoPreviewLayer?
 
         init(parent: CameraOverlayView) { self.parent = parent }
 
@@ -47,6 +49,7 @@ struct CameraOverlayView: UIViewRepresentable {
             let sampleSize = max(2, min(stepX, stepY) / 6)
 
             var detected: [CubeColor] = []
+            var rects: [CGRect] = []
             for row in 0..<3 {
                 for col in 0..<3 {
                     let centerX = startX + col * stepX
@@ -88,12 +91,22 @@ struct CameraOverlayView: UIViewRepresentable {
                     let meanSat = sTotal / count
                     let meanVal = vTotal / count
                     detected.append(CubeColor.from(h: meanHue, s: meanSat, v: meanVal))
+
+                    // Normalized rect for overlay debug square
+                    let rect = CGRect(x: CGFloat(originX) / CGFloat(width),
+                                      y: CGFloat(originY) / CGFloat(height),
+                                      width: CGFloat(sampleSize) / CGFloat(width),
+                                      height: CGFloat(sampleSize) / CGFloat(height))
+                    rects.append(rect)
                 }
             }
 
             CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
 
             guard detected.count == 9 else { return }
+
+            // Draw debug overlay with detected colors
+            drawDebug(rects: rects, colors: detected)
 
             recentDetections.append(detected)
             if recentDetections.count > historyLength { recentDetections.removeFirst() }
@@ -125,6 +138,38 @@ struct CameraOverlayView: UIViewRepresentable {
 
             recentDetections.removeAll()
         }
+
+        /// Draws small colored squares with labels for each sampled sticker.
+        private func drawDebug(rects: [CGRect], colors: [CubeColor]) {
+            guard rects.count == colors.count,
+                  let overlay = overlayView,
+                  let preview = previewLayer else { return }
+
+            DispatchQueue.main.async {
+                overlay.layer.sublayers?.forEach { $0.removeFromSuperlayer() }
+                for (rect, color) in zip(rects, colors) {
+                    // Convert from normalized capture coords to view space.
+                    let layerRect = preview.layerRectConverted(fromMetadataOutputRect: rect)
+
+                    let box = CAShapeLayer()
+                    box.path = UIBezierPath(rect: layerRect).cgPath
+                    box.fillColor = color.uiColor.withAlphaComponent(0.6).cgColor
+                    box.strokeColor = UIColor.black.cgColor
+                    box.lineWidth = 1
+                    overlay.layer.addSublayer(box)
+
+                    let text = CATextLayer()
+                    text.string = color.label
+                    text.alignmentMode = .center
+                    text.foregroundColor = UIColor.white.cgColor
+                    text.backgroundColor = UIColor.black.withAlphaComponent(0.5).cgColor
+                    text.fontSize = 10
+                    text.contentsScale = UIScreen.main.scale
+                    text.frame = layerRect
+                    overlay.layer.addSublayer(text)
+                }
+            }
+        }
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -132,8 +177,17 @@ struct CameraOverlayView: UIViewRepresentable {
     func makeUIView(context: Context) -> PreviewView {
         let view = PreviewView()
 
+        // Overlay for debug squares and labels.
+        let overlay = UIView(frame: view.bounds)
+        overlay.isUserInteractionEnabled = false
+        overlay.backgroundColor = .clear
+        overlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(overlay)
+
         let session = AVCaptureSession()
         context.coordinator.session = session
+        context.coordinator.overlayView = overlay
+        context.coordinator.previewLayer = view.videoPreviewLayer
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
 

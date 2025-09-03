@@ -52,6 +52,32 @@ enum CubeColor: CaseIterable {
         }
     }
 
+    /// UIKit color for drawing overlays and SceneKit materials.
+    var uiColor: UIColor {
+        switch self {
+        case .white:  return .white
+        case .yellow: return .yellow
+        case .red:    return .red
+        case .orange: return .orange
+        case .blue:   return .blue
+        case .green:  return .green
+        case .gray:   return .gray
+        }
+    }
+
+    /// Human‑readable name used in debug overlays.
+    var label: String {
+        switch self {
+        case .white:  return "WHITE"
+        case .yellow: return "YELLOW"
+        case .red:    return "RED"
+        case .orange: return "ORANGE"
+        case .blue:   return "BLUE"
+        case .green:  return "GREEN"
+        case .gray:   return "?"
+        }
+    }
+
     /// Reference HSV values for each cube color computed from standard sRGB
     /// swatches. These values are used to classify camera samples by weighted
     /// HSV distance, mirroring the approach in the Python prototype.
