@@ -100,13 +100,14 @@ struct CameraOverlayView: UIViewRepresentable {
             guard recentDetections.count == historyLength else { return }
 
             var stable: [CubeColor] = []
+            let required = historyLength - 1
             for idx in 0..<9 {
                 var tally: [CubeColor: Int] = [:]
                 for sample in recentDetections {
                     tally[sample[idx], default: 0] += 1
                 }
                 if let (color, count) = tally.max(by: { $0.value < $1.value }),
-                   count == historyLength, color != .gray {
+                   count >= required, color != .gray {
                     stable.append(color)
                 } else {
                     return

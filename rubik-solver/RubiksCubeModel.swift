@@ -80,7 +80,7 @@ enum CubeColor: CaseIterable {
     /// reference palette. The nearest color wins; samples that are too dark are
     /// treated as unknown/gray.
     static func from(h: CGFloat, s: CGFloat, v: CGFloat) -> CubeColor {
-        guard v > 0.2 else { return .gray }
+        guard v > 0.1 else { return .gray }
 
         var best: CubeColor = .gray
         var bestDistance: CGFloat = .greatestFiniteMagnitude
@@ -98,7 +98,7 @@ enum CubeColor: CaseIterable {
 
         // If the closest reference is still far away, mark as gray to avoid
         // propagating wildly incorrect colors.
-        return bestDistance > 0.4 ? .gray : best
+        return bestDistance > 0.6 ? .gray : best
     }
 
     /// Convenience wrapper for callers providing a `UIColor` sample.
