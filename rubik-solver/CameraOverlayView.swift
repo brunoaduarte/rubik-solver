@@ -52,10 +52,11 @@ struct CameraOverlayView: UIViewRepresentable {
                     let centerX = startX + col * stepX
                     let centerY = startY + row * stepY
 
-                    var rTotal = 0
-                    var gTotal = 0
-                    var bTotal = 0
-                    var count = 0
+                    var hX: CGFloat = 0
+                    var hY: CGFloat = 0
+                    var sTotal: CGFloat = 0
+                    var vTotal: CGFloat = 0
+                    var count: CGFloat = 0
 
                     let originX = max(0, centerX - sampleSize / 2)
                     let originY = max(0, centerY - sampleSize / 2)
@@ -66,20 +67,27 @@ struct CameraOverlayView: UIViewRepresentable {
                             let y = originY + yy
                             if x < width && y < height {
                                 let idx = y * bytesPerRow + x * 4
-                                bTotal += Int(buffer[idx])
-                                gTotal += Int(buffer[idx + 1])
-                                rTotal += Int(buffer[idx + 2])
+                                let b = CGFloat(buffer[idx]) / 255.0
+                                let g = CGFloat(buffer[idx + 1]) / 255.0
+                                let r = CGFloat(buffer[idx + 2]) / 255.0
+                                var h: CGFloat = 0, s: CGFloat = 0, v: CGFloat = 0, a: CGFloat = 0
+                                UIColor(red: r, green: g, blue: b, alpha: 1.0)
+                                    .getHue(&h, saturation: &s, brightness: &v, alpha: &a)
+                                hX += cos(h * 2 * CGFloat.pi)
+                                hY += sin(h * 2 * CGFloat.pi)
+                                sTotal += s
+                                vTotal += v
                                 count += 1
                             }
                         }
                     }
 
                     guard count > 0 else { continue }
-                    let r = CGFloat(rTotal) / CGFloat(count) / 255.0
-                    let g = CGFloat(gTotal) / CGFloat(count) / 255.0
-                    let b = CGFloat(bTotal) / CGFloat(count) / 255.0
-                    let ui = UIColor(red: r, green: g, blue: b, alpha: 1.0)
-                    detected.append(CubeColor.from(ui))
+                    var meanHue = atan2(hY / count, hX / count) / (2 * CGFloat.pi)
+                    if meanHue < 0 { meanHue += 1 }
+                    let meanSat = sTotal / count
+                    let meanVal = vTotal / count
+                    detected.append(CubeColor.from(h: meanHue, s: meanSat, v: meanVal))
                 }
             }
 

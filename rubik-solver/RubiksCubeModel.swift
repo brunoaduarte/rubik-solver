@@ -52,33 +52,60 @@ enum CubeColor: CaseIterable {
         }
     }
 
-    /// Color classification using HSV ranges rather than raw RGB distance.
-    /// HSV allows more robust separation of Rubik's cube colors under
-    /// different lighting conditions.
+    /// Reference HSV values for each cube color computed from standard sRGB
+    /// swatches. These values are used to classify camera samples by weighted
+    /// HSV distance, mirroring the approach in the Python prototype.
+    private static let referenceHSV: [CubeColor: (h: CGFloat, s: CGFloat, v: CGFloat)] = {
+        func hsv(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> (CGFloat, CGFloat, CGFloat) {
+            let color = UIColor(red: r / 255.0, green: g / 255.0, blue: b / 255.0, alpha: 1.0)
+            var h: CGFloat = 0, s: CGFloat = 0, v: CGFloat = 0, a: CGFloat = 0
+            color.getHue(&h, saturation: &s, brightness: &v, alpha: &a)
+            return (h, s, v)
+        }
+        return [
+            .white:  hsv(255, 255, 255),
+            .yellow: hsv(255, 213,   0),
+            .orange: hsv(255, 146,   0),
+            .red:    hsv(183,  18,  52),
+            .green:  hsv(  0, 155,  72),
+            .blue:   hsv(  0,  70, 173)
+        ]
+    }()
+
+    private static let hWeight: CGFloat = 2.0
+    private static let sWeight: CGFloat = 1.0
+    private static let vWeight: CGFloat = 1.0
+
+    /// Classify a sampled color by comparing its HSV components against the
+    /// reference palette. The nearest color wins; samples that are too dark are
+    /// treated as unknown/gray.
+    static func from(h: CGFloat, s: CGFloat, v: CGFloat) -> CubeColor {
+        guard v > 0.2 else { return .gray }
+
+        var best: CubeColor = .gray
+        var bestDistance: CGFloat = .greatestFiniteMagnitude
+
+        for (cubeColor, ref) in referenceHSV {
+            let dH = min(abs(h - ref.h), 1 - abs(h - ref.h)) * hWeight
+            let dS = abs(s - ref.s) * sWeight
+            let dV = abs(v - ref.v) * vWeight
+            let dist = dH + dS + dV
+            if dist < bestDistance {
+                bestDistance = dist
+                best = cubeColor
+            }
+        }
+
+        // If the closest reference is still far away, mark as gray to avoid
+        // propagating wildly incorrect colors.
+        return bestDistance > 0.4 ? .gray : best
+    }
+
+    /// Convenience wrapper for callers providing a `UIColor` sample.
     static func from(_ color: UIColor) -> CubeColor {
         var h: CGFloat = 0, s: CGFloat = 0, v: CGFloat = 0, a: CGFloat = 0
         color.getHue(&h, saturation: &s, brightness: &v, alpha: &a)
-
-        // Treat low-brightness samples as unknown/gray.
-        guard v > 0.2 else { return .gray }
-
-        // Whites have very low saturation but remain bright.
-        if s < 0.2 && v > 0.8 { return .white }
-
-        switch h {
-        case 0.0..<0.05, 0.95...1.0:
-            return .red
-        case 0.05..<0.13:
-            return .orange
-        case 0.13..<0.20:
-            return .yellow
-        case 0.20..<0.45:
-            return .green
-        case 0.45..<0.75:
-            return .blue
-        default:
-            return .gray
-        }
+        return from(h: h, s: s, v: v)
     }
 }
 
