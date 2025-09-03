@@ -34,7 +34,9 @@ struct RubiksCubeView: UIViewRepresentable {
     }
 
     private func cubeMaterials() -> [SCNMaterial] {
-        (0..<cube.faces.count).map { idx in
+        // SCNBox expects materials in the order: front, right, back, left, top, bottom
+        let order = [2, 1, 5, 4, 0, 3] // F, R, B, L, U, D
+        return order.map { idx in
             let material = SCNMaterial()
             material.diffuse.contents = faceImage(from: cube.colors(for: idx))
             return material

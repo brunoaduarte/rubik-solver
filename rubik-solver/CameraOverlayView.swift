@@ -17,6 +17,8 @@ struct CameraOverlayView: UIViewRepresentable {
     class Coordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
         var parent: CameraOverlayView
         var session: AVCaptureSession?
+        private let historyLength = 5
+        private var recentDetections: [[CubeColor]] = []
 
         init(parent: CameraOverlayView) { self.parent = parent }
 
@@ -84,12 +86,35 @@ struct CameraOverlayView: UIViewRepresentable {
             CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly)
 
             guard detected.count == 9 else { return }
-            let center = detected[4]
-            if let faceIndex = parent.cube.faceIndex(for: center) {
-                DispatchQueue.main.async {
-                    parent.cube.update(face: faceIndex, with: detected)
+
+            recentDetections.append(detected)
+            if recentDetections.count > historyLength { recentDetections.removeFirst() }
+            guard recentDetections.count == historyLength else { return }
+
+            var stable: [CubeColor] = []
+            for idx in 0..<9 {
+                var tally: [CubeColor: Int] = [:]
+                for sample in recentDetections {
+                    tally[sample[idx], default: 0] += 1
+                }
+                if let (color, count) = tally.max(by: { $0.value < $1.value }),
+                   count == historyLength, color != .gray {
+                    stable.append(color)
+                } else {
+                    return
                 }
             }
+
+            let center = stable[4]
+            if let faceIndex = parent.cube.faceIndex(for: center) {
+                if parent.cube.faces[faceIndex] != stable {
+                    DispatchQueue.main.async {
+                        parent.cube.update(face: faceIndex, with: stable)
+                    }
+                }
+            }
+
+            recentDetections.removeAll()
         }
     }
 
